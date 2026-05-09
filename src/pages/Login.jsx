@@ -7,7 +7,7 @@ function Login() {
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
-        redirectTo: "https://sos2-xi.vercel.app/Dashboard",
+        redirectTo: "http://localhost:5173/profile",
       },
     });
 
