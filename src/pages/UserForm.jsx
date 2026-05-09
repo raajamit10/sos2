@@ -3,7 +3,6 @@ import { supabase } from "../services/supabase";
 import "../styles/UserForm.css";
 
 function UserForm() {
-
   const [loading, setLoading] = useState(false);
 
   const [form, setForm] = useState({
@@ -14,7 +13,6 @@ function UserForm() {
   });
 
   const handleChange = (e) => {
-
     setForm({
       ...form,
       [e.target.name]: e.target.value,
@@ -22,13 +20,10 @@ function UserForm() {
   };
 
   const handleSubmit = async (e) => {
-
     e.preventDefault();
-
     setLoading(true);
 
     try {
-
       const {
         data: { user },
       } = await supabase.auth.getUser();
@@ -39,16 +34,14 @@ function UserForm() {
         return;
       }
 
-      const { error } = await supabase
-        .from("profiles")
-        .upsert({
-          id: user.id,
-          email: user.email,
-          name: form.name,
-          phone: form.phone,
-          guardian_phone: form.guardian_phone,
-          address: form.address,
-        });
+      const { error } = await supabase.from("profiles").upsert({
+        id: user.id,
+        email: user.email,
+        name: form.name,
+        phone: form.phone,
+        guardian_phone: form.guardian_phone,
+        address: form.address,
+      });
 
       if (error) {
         console.log(error);
@@ -60,12 +53,9 @@ function UserForm() {
       alert("Profile Saved 🚀");
 
       window.location.href = "/dashboard";
-
     } catch (err) {
-
       console.log(err);
       alert("Something went wrong");
-
     }
 
     setLoading(false);
@@ -73,59 +63,19 @@ function UserForm() {
 
   return (
     <div className="login-container">
-
-      <form
-        className="login-box"
-        onSubmit={handleSubmit}
-      >
-
+      <form className="login-box" onSubmit={handleSubmit}>
         <h2>🧍 Complete Profile</h2>
 
-        <input
-          type="text"
-          name="name"
-          placeholder="Full Name"
-          value={form.name}
-          onChange={handleChange}
-          required
-        />
+        <input name="name" placeholder="Full Name" onChange={handleChange} required />
+        <input name="phone" placeholder="Phone Number" onChange={handleChange} required />
+        <input name="guardian_phone" placeholder="Guardian Phone" onChange={handleChange} required />
 
-        <input
-          type="text"
-          name="phone"
-          placeholder="Phone Number"
-          value={form.phone}
-          onChange={handleChange}
-          required
-        />
-
-        <input
-          type="text"
-          name="guardian_phone"
-          placeholder="Guardian Phone Number"
-          value={form.guardian_phone}
-          onChange={handleChange}
-          required
-        />
-
-        <textarea
-          name="address"
-          placeholder="Address"
-          value={form.address}
-          onChange={handleChange}
-          required
-        />
+        <textarea name="address" placeholder="Address" onChange={handleChange} required />
 
         <button type="submit">
-
-          {loading
-            ? "Saving..."
-            : "Continue"}
-
+          {loading ? "Saving..." : "Continue"}
         </button>
-
       </form>
-
     </div>
   );
 }
