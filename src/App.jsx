@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+console.log("TEST UPDATE");
 import {
   BrowserRouter,
   Routes,
