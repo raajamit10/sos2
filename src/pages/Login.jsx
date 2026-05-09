@@ -1,5 +1,5 @@
 import { supabase } from "../services/supabase";
-import "../styles/Login.css";
+import "../styles/login.css";
 
 function Login() {
 
