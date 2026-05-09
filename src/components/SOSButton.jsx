@@ -4,113 +4,161 @@ import { supabase } from "../services/supabase";
 function SOSButton() {
   const [countdown, setCountdown] = useState(null);
   const [sending, setSending] = useState(false);
+
   const timeoutRef = useRef(null);
 
+  // START COUNTDOWN
   const startSOS = () => {
     if (countdown !== null || sending) return;
     setCountdown(5);
   };
 
-  const cancelSOS = () => {
-    setCountdown(null);
-
-    if (timeoutRef.current) {
-      clearTimeout(timeoutRef.current);
-      timeoutRef.current = null;
-    }
-
-    setSending(false);
-  };
-
+  // SEND SOS
   const sendSOS = async () => {
     setSending(true);
 
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      // GET USER
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
 
       if (!user) {
+        alert("User not logged in");
         setSending(false);
         setCountdown(null);
         return;
       }
 
-      const { data: profile } = await supabase
+      // GET PROFILE
+      const { data: profile, error: profileError } = await supabase
         .from("profiles")
         .select("*")
         .eq("id", user.id)
-        .maybeSingle();
+        .single();
 
-      if (!navigator.geolocation) return;
+      if (profileError) {
+        console.log(profileError);
+        alert("Failed to fetch profile");
+        setSending(false);
+        setCountdown(null);
+        return;
+      }
+
+      // CHECK GEOLOCATION
+      if (!navigator.geolocation) {
+        alert("Geolocation not supported");
+        setSending(false);
+        setCountdown(null);
+        return;
+      }
 
       navigator.geolocation.getCurrentPosition(
         async (position) => {
           const latitude = position.coords.latitude;
           const longitude = position.coords.longitude;
 
+          // MICROPHONE ACCESS
           let stream;
           try {
-            stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-          } catch {
-            alert("Mic denied");
+            stream = await navigator.mediaDevices.getUserMedia({
+              audio: true,
+            });
+          } catch (err) {
+            console.log(err);
+            alert("Microphone permission denied");
             setSending(false);
             setCountdown(null);
             return;
           }
 
-          const recorder = new MediaRecorder(stream);
-          const chunks = [];
+          const mediaRecorder = new MediaRecorder(stream);
+          const audioChunks = [];
 
-          recorder.ondataavailable = (e) => chunks.push(e.data);
-          recorder.start();
+          mediaRecorder.ondataavailable = (event) => {
+            audioChunks.push(event.data);
+          };
 
+          mediaRecorder.start();
+
+          // RECORD FOR 20 SECONDS
           timeoutRef.current = setTimeout(async () => {
-            recorder.stop();
+            mediaRecorder.stop();
 
-            recorder.onstop = async () => {
-              const blob = new Blob(chunks, { type: "audio/webm" });
+            mediaRecorder.onstop = async () => {
+              const audioBlob = new Blob(audioChunks, {
+                type: "audio/webm",
+              });
+
               const fileName = `${Date.now()}.webm`;
 
-              await supabase.storage
+              // UPLOAD AUDIO
+              const { error: uploadError } = await supabase.storage
                 .from("recordings")
-                .upload(fileName, blob);
+                .upload(fileName, audioBlob);
 
+              if (uploadError) {
+                console.log(uploadError);
+                alert("Audio upload failed");
+                setSending(false);
+                return;
+              }
+
+              // GET PUBLIC URL (FIXED)
               const { data } = supabase.storage
                 .from("recordings")
                 .getPublicUrl(fileName);
 
-              const audio_url = data.publicUrl;
+              const publicUrl = data.publicUrl;
 
-              await supabase.from("sos_alerts").insert([
+              // SAVE SOS ALERT
+              const { error } = await supabase.from("sos_alerts").insert([
                 {
                   user_id: user.id,
-                  name: profile?.name,
-                  phone: profile?.phone,
-                  guardian_phone: profile?.guardian_phone,
-                  address: profile?.address,
+                  name: profile.name,
+                  phone: profile.phone,
+                  guardian_phone: profile.guardian_phone,
+                  address: profile.address,
                   latitude,
                   longitude,
-                  audio_url,
+                  audio_url: publicUrl,
                   status: "active",
                 },
               ]);
 
-              alert("🚨 SOS SENT");
+              if (error) {
+                console.log(error);
+                alert("Failed to send SOS");
+                setSending(false);
+                return;
+              }
 
-              setSending(false);
+              alert("🚨 SOS Sent Successfully");
+
               setCountdown(null);
+              setSending(false);
 
-              stream.getTracks().forEach(t => t.stop());
+              // STOP MIC
+              stream.getTracks().forEach((track) => track.stop());
             };
           }, 20000);
+        },
+        (error) => {
+          console.log(error);
+          alert("Location access denied");
+          setSending(false);
+          setCountdown(null);
         }
       );
     } catch (err) {
       console.log(err);
+      alert("Something went wrong");
       setSending(false);
       setCountdown(null);
     }
   };
 
+  // COUNTDOWN EFFECT
   useEffect(() => {
     if (countdown === null) return;
 
@@ -120,20 +168,43 @@ function SOSButton() {
     }
 
     const timer = setTimeout(() => {
-      setCountdown(c => c - 1);
+      setCountdown((prev) => prev - 1);
     }, 1000);
 
     return () => clearTimeout(timer);
   }, [countdown]);
 
+  // CANCEL SOS
+  const cancelSOS = () => {
+    setCountdown(null);
+
+    // clear recording timer if running
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+      timeoutRef.current = null;
+    }
+
+    setSending(false);
+  };
+
   return (
-    <div>
-      <button onClick={startSOS} disabled={sending}>
-        {sending ? "Sending..." : countdown !== null ? countdown : "SOS"}
+    <div className="sos-wrapper">
+      <button
+        className="sos-button"
+        onClick={startSOS}
+        disabled={sending}
+      >
+        {sending
+          ? "Recording..."
+          : countdown !== null
+          ? countdown
+          : "SOS"}
       </button>
 
       {countdown !== null && (
-        <button onClick={cancelSOS}>Cancel</button>
+        <button className="cancel-btn" onClick={cancelSOS}>
+          Cancel
+        </button>
       )}
     </div>
   );
